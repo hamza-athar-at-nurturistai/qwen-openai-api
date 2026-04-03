@@ -12,6 +12,9 @@ services:
       - API_KEY=${API_KEY:-}
       - MAX_TOKENS=${MAX_TOKENS:-4096}
       - TEMPERATURE=${TEMPERATURE:-0.7}
+      # Qwen OAuth credentials
+      - QWEN_ACCESS_TOKEN=${QWEN_ACCESS_TOKEN:-}
+      - QWEN_REFRESH_TOKEN=${QWEN_REFRESH_TOKEN:-}
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
