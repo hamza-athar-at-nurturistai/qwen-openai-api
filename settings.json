@@ -1,0 +1,16 @@
+{
+  "security": {
+    "auth": {
+      "selectedType": "qwen-oauth"
+    }
+  },
+  "general": {
+    "checkpointing": {
+      "enabled": false
+    }
+  },
+  "tools": {
+    "approvalMode": "yolo"
+  },
+  "$version": 3
+}
