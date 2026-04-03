@@ -30,6 +30,9 @@ RUN chmod +x /entrypoint.sh
 
 ENTRYPOINT ["/entrypoint.sh"]
 
+# Set workspace as working directory
+WORKDIR /workspace
+
 # Expose port
 EXPOSE 8000
 
