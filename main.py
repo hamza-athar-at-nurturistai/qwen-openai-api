@@ -59,6 +59,12 @@ async def verify_api_key(authorization: str = Header(None)):
             raise HTTPException(status_code=403, detail="Invalid API key")
 
 
+@app.get("/health")
+async def health_check():
+    """Health check endpoint (used by Docker HEALTHCHECK)."""
+    return {"status": "healthy", "model": settings.QWEN_MODEL}
+
+
 @app.get(f"{settings.API_BASE_PATH}/models", dependencies=[Depends(verify_api_key)])
 async def list_models():
     """List available models (OpenAI-compatible)."""
