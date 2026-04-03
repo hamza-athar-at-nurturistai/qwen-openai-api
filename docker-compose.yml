@@ -1,0 +1,26 @@
+version: '3.8'
+
+services:
+  qwen-api:
+    build: .
+    container_name: qwen-openai-api
+    ports:
+      - "${PORT:-8000}:8000"
+    environment:
+      - QWEN_MODEL=${QWEN_MODEL:-qwen2.5-coder}
+      - QWEN_CLI_PATH=${QWEN_CLI_PATH:-qwen}
+      - QWEN_TIMEOUT=${QWEN_TIMEOUT:-300}
+      - API_KEY=${API_KEY:-}
+      - MAX_TOKENS=${MAX_TOKENS:-4096}
+      - TEMPERATURE=${TEMPERATURE:-0.7}
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    # Uncomment and modify if you need to mount local Qwen CLI
+    # volumes:
+    #   - ./qwen-cli:/usr/local/bin/qwen:ro
+    #   - ~/.qwen:/root/.qwen  # For config/credentials if needed
