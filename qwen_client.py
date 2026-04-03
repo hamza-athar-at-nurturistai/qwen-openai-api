@@ -10,16 +10,6 @@ from schemas import ChatMessage
 logger = logging.getLogger(__name__)
 
 
-async def _feed_stdin(process):
-    """Feed stdin to keep Qwen from hanging on prompts."""
-    try:
-        while True:
-            process.stdin.write(b"y\n")
-            await asyncio.sleep(0.5)
-    except (BrokenPipeError, ConnectionResetError):
-        pass
-
-
 class QwenCLIClient:
     """Client for interacting with Qwen CLI."""
     
@@ -61,17 +51,16 @@ class QwenCLIClient:
         logger.info(f"Running Qwen CLI: {' '.join(cmd[:4])}...")
 
         try:
-            # Pipe "y\n" responses for any interactive prompts
+            # No stdin - pure non-interactive mode
             process = await asyncio.create_subprocess_exec(
                 *cmd,
-                stdin=asyncio.subprocess.PIPE,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
                 limit=1024 * 1024  # 1MB buffer
             )
 
             stdout, stderr = await asyncio.wait_for(
-                process.communicate(input=b"y\n"),  # Auto-answer prompts
+                process.communicate(),
                 timeout=self.timeout
             )
             
@@ -115,14 +104,10 @@ class QwenCLIClient:
         try:
             process = await asyncio.create_subprocess_exec(
                 *cmd,
-                stdin=asyncio.subprocess.PIPE,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
                 limit=1024 * 1024
             )
-
-            # Pipe "y\n" in background to auto-answer prompts
-            asyncio.create_task(_feed_stdin(process))
 
             # Read output line by line
             async for line in process.stdout:
