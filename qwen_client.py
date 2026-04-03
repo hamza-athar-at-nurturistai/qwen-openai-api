@@ -10,6 +10,16 @@ from schemas import ChatMessage
 logger = logging.getLogger(__name__)
 
 
+async def _feed_stdin(process):
+    """Feed stdin to keep Qwen from hanging on prompts."""
+    try:
+        while True:
+            process.stdin.write(b"y\n")
+            await asyncio.sleep(0.5)
+    except (BrokenPipeError, ConnectionResetError):
+        pass
+
+
 class QwenCLIClient:
     """Client for interacting with Qwen CLI."""
     
@@ -37,28 +47,31 @@ class QwenCLIClient:
     async def generate(self, messages: List[ChatMessage], **kwargs) -> str:
         """Generate a response using Qwen CLI (non-streaming)."""
         prompt = self._build_prompt(messages)
-        
+
         # Build CLI command for Qwen Code
         cmd = [
             settings.QWEN_CLI_PATH,
             "-m", self.model,
             "-p", prompt,
             "--auth-type", "qwen-oauth",
-            "--yolo",  # Auto-accept
+            "--approval-mode", "yolo",
+            "--allowed-tools", "*",  # Allow all tools without confirmation
         ]
 
         logger.info(f"Running Qwen CLI: {' '.join(cmd[:4])}...")
-        
+
         try:
+            # Pipe "y\n" responses for any interactive prompts
             process = await asyncio.create_subprocess_exec(
                 *cmd,
+                stdin=asyncio.subprocess.PIPE,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
                 limit=1024 * 1024  # 1MB buffer
             )
-            
+
             stdout, stderr = await asyncio.wait_for(
-                process.communicate(),
+                process.communicate(input=b"y\n"),  # Auto-answer prompts
                 timeout=self.timeout
             )
             
@@ -80,32 +93,37 @@ class QwenCLIClient:
             raise RuntimeError(f"Qwen CLI execution error: {str(e)}")
     
     async def generate_stream(
-        self, 
-        messages: List[ChatMessage], 
+        self,
+        messages: List[ChatMessage],
         **kwargs
     ) -> AsyncGenerator[str, None]:
         """Generate a streaming response using Qwen CLI."""
         prompt = self._build_prompt(messages)
-        
+
         # Build CLI command for Qwen Code
         cmd = [
             settings.QWEN_CLI_PATH,
             "-m", self.model,
             "-p", prompt,
             "--auth-type", "qwen-oauth",
-            "--yolo",  # Auto-accept
+            "--approval-mode", "yolo",
+            "--allowed-tools", "*",
         ]
 
         logger.info(f"Running Qwen CLI (streaming): {' '.join(cmd[:4])}...")
-        
+
         try:
             process = await asyncio.create_subprocess_exec(
                 *cmd,
+                stdin=asyncio.subprocess.PIPE,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
                 limit=1024 * 1024
             )
-            
+
+            # Pipe "y\n" in background to auto-answer prompts
+            asyncio.create_task(_feed_stdin(process))
+
             # Read output line by line
             async for line in process.stdout:
                 text = line.decode().strip()

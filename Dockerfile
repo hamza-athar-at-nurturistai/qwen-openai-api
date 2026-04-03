@@ -14,8 +14,26 @@ RUN apt-get update && \
 # Install Qwen CLI globally via npm
 RUN npm install -g @qwen-code/qwen-code
 
-# Create Qwen config directory
-RUN mkdir -p /root/.qwen
+# Create Qwen config directory with pre-configured settings
+RUN mkdir -p /root/.qwen && \
+    cat > /root/.qwen/settings.json << 'SETTINGSEOF'
+{
+  "security": {
+    "auth": {
+      "selectedType": "qwen-oauth"
+    }
+  },
+  "general": {
+    "checkpointing": {
+      "enabled": false
+    }
+  },
+  "tools": {
+    "approvalMode": "yolo"
+  },
+  "$version": 3
+}
+SETTINGSEOF
 
 # Copy requirements and install Python dependencies
 COPY requirements.txt .
