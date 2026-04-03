@@ -24,21 +24,9 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy application code
 COPY . .
 
-# Create entrypoint script to inject OAuth credentials
-RUN echo '#!/bin/bash\n\
-if [ -n "$QWEN_ACCESS_TOKEN" ]; then\n\
-  mkdir -p /root/.qwen\n\
-  cat > /root/.qwen/oauth_creds.json << EOF\n\
-{\n\
-  "access_token": "'"$QWEN_ACCESS_TOKEN"'",\n\
-  "token_type": "Bearer",\n\
-  "refresh_token": "'"$QWEN_REFRESH_TOKEN"'",\n\
-  "resource_url": "portal.qwen.ai",\n\
-  "expiry_date": 1893456000000\n\
-}\n\
-EOF\n\
-fi\n\
-exec "$@"' > /entrypoint.sh && chmod +x /entrypoint.sh
+# Copy entrypoint script
+COPY entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
 
 ENTRYPOINT ["/entrypoint.sh"]
 
