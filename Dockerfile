@@ -2,16 +2,17 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
-# Install system dependencies
+# Install system dependencies + Node.js (required for Qwen CLI)
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
     curl \
+    gnupg \
+    && curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
+    && apt-get install -y nodejs \
     && rm -rf /var/lib/apt/lists/*
 
-# Install Qwen CLI (adjust this based on how you install it)
-# This is a placeholder - update with actual installation command
-RUN curl -fsSL https://example.com/qwen-cli-install.sh | bash || \
-    echo "Qwen CLI installation placeholder - update Dockerfile with actual install command"
+# Install Qwen CLI globally via npm
+RUN npm install -g @qwen-code/qwen-code
 
 # Copy requirements and install Python dependencies
 COPY requirements.txt .
