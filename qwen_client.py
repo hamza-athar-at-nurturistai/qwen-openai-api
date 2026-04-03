@@ -43,9 +43,10 @@ class QwenCLIClient:
             settings.QWEN_CLI_PATH,
             "-m", self.model,
             "-p", prompt,
+            "--auth-type", "qwen-oauth",
             "--yolo",  # Auto-accept
         ]
-        
+
         logger.info(f"Running Qwen CLI: {' '.join(cmd[:4])}...")
         
         try:
@@ -91,9 +92,10 @@ class QwenCLIClient:
             settings.QWEN_CLI_PATH,
             "-m", self.model,
             "-p", prompt,
+            "--auth-type", "qwen-oauth",
             "--yolo",  # Auto-accept
         ]
-        
+
         logger.info(f"Running Qwen CLI (streaming): {' '.join(cmd[:4])}...")
         
         try:
