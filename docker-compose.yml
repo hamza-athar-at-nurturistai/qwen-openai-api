@@ -4,8 +4,7 @@ services:
   qwen-api:
     build: .
     container_name: qwen-openai-api
-    ports:
-      - "${PORT:-8000}:8000"
+    # Coolify handles port mapping automatically - no need to expose ports here
     environment:
       - QWEN_MODEL=${QWEN_MODEL:-qwen2.5-coder}
       - QWEN_CLI_PATH=${QWEN_CLI_PATH:-qwen}
@@ -20,7 +19,3 @@ services:
       timeout: 10s
       retries: 3
       start_period: 10s
-    # Uncomment and modify if you need to mount local Qwen CLI
-    # volumes:
-    #   - ./qwen-cli:/usr/local/bin/qwen:ro
-    #   - ~/.qwen:/root/.qwen  # For config/credentials if needed
