@@ -2,7 +2,7 @@ import logging
 from typing import AsyncGenerator
 from datetime import datetime
 
-from fastapi import FastAPI, HTTPException, Depends, Header, Request
+from fastapi import FastAPI, HTTPException, Depends, Header
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 
@@ -49,24 +49,14 @@ async def verify_api_key(authorization: str = Header(None)):
     if settings.API_KEY:
         if not authorization:
             raise HTTPException(status_code=401, detail="Authorization header required")
-        
+
         # Extract Bearer token
         parts = authorization.split()
         if len(parts) != 2 or parts[0] != "Bearer":
             raise HTTPException(status_code=401, detail="Invalid authorization header")
-        
+
         if parts[1] != settings.API_KEY:
             raise HTTPException(status_code=403, detail="Invalid API key")
-
-
-@app.get("/health")
-async def health_check():
-    """Health check endpoint."""
-    return {
-        "status": "healthy",
-        "model": settings.QWEN_MODEL,
-        "timestamp": datetime.now().isoformat(),
-    }
 
 
 @app.get(f"{settings.API_BASE_PATH}/models", dependencies=[Depends(verify_api_key)])
@@ -75,7 +65,6 @@ async def list_models():
     return ModelListResponse(
         data=[
             ModelInfo(id=settings.QWEN_MODEL),
-            ModelInfo(id="qwen2.5-coder"),
         ]
     )
 
@@ -86,25 +75,18 @@ async def list_models():
 )
 async def create_chat_completion(request: ChatCompletionRequest):
     """Create a chat completion (OpenAI-compatible)."""
-    try:
-        if request.stream:
-            return StreamingResponse(
-                stream_chat_completion(request),
-                media_type="text/event-stream",
-                headers={
-                    "Cache-Control": "no-cache",
-                    "Connection": "keep-alive",
-                    "X-Accel-Buffering": "no",
-                }
-            )
-        else:
-            return await generate_chat_completion(request)
-    except RuntimeError as e:
-        logger.error(f"Chat completion error: {str(e)}")
-        raise HTTPException(status_code=500, detail=str(e))
-    except Exception as e:
-        logger.error(f"Unexpected error: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
+    if request.stream:
+        return StreamingResponse(
+            stream_chat_completion(request),
+            media_type="text/event-stream",
+            headers={
+                "Cache-Control": "no-cache",
+                "Connection": "keep-alive",
+                "X-Accel-Buffering": "no",
+            }
+        )
+    else:
+        return await generate_chat_completion(request)
 
 
 async def generate_chat_completion(request: ChatCompletionRequest) -> ChatCompletionResponse:
@@ -114,7 +96,10 @@ async def generate_chat_completion(request: ChatCompletionRequest) -> ChatComple
         temperature=request.temperature,
         max_tokens=request.max_tokens,
     )
-    
+
+    prompt_tokens = sum(len(msg.content.split()) for msg in request.messages)
+    completion_tokens = len(response_text.split())
+
     return ChatCompletionResponse(
         model=request.model,
         choices=[
@@ -125,9 +110,9 @@ async def generate_chat_completion(request: ChatCompletionRequest) -> ChatComple
             )
         ],
         usage={
-            "prompt_tokens": sum(len(msg.content.split()) for msg in request.messages),
-            "completion_tokens": len(response_text.split()),
-            "total_tokens": sum(len(msg.content.split()) for msg in request.messages) + len(response_text.split()),
+            "prompt_tokens": prompt_tokens,
+            "completion_tokens": completion_tokens,
+            "total_tokens": prompt_tokens + completion_tokens,
         }
     )
 
@@ -135,13 +120,15 @@ async def generate_chat_completion(request: ChatCompletionRequest) -> ChatComple
 async def stream_chat_completion(request: ChatCompletionRequest) -> AsyncGenerator[str, None]:
     """Generate a streaming chat completion."""
     chunk_id = f"chatcmpl-{datetime.now().strftime('%Y%m%d%H%M%S')}"
-    
+    got_content = False
+
     try:
         async for token in qwen_client.generate_stream(
             messages=request.messages,
             temperature=request.temperature,
             max_tokens=request.max_tokens,
         ):
+            got_content = True
             chunk = ChatCompletionChunk(
                 id=chunk_id,
                 model=request.model,
@@ -154,50 +141,22 @@ async def stream_chat_completion(request: ChatCompletionRequest) -> AsyncGenerat
                 ]
             )
             yield f"data: {chunk.model_dump_json()}\n\n"
-        
-        # Send final chunk with finish_reason
-        final_chunk = ChatCompletionChunk(
-            id=chunk_id,
-            model=request.model,
-            choices=[
-                StreamChoice(
-                    index=0,
-                    delta={},
-                    finish_reason="stop",
-                )
-            ]
-        )
-        yield f"data: {final_chunk.model_dump_json()}\n\n"
-        yield "data: [DONE]\n\n"
-        
-    except Exception as e:
-        logger.error(f"Streaming error: {str(e)}")
-        error_chunk = {
-            "error": {"message": str(e), "type": "server_error"}
-        }
-        yield f"data: {error_chunk}\n\n"
-        yield "data: [DONE]\n\n"
 
+    except RuntimeError:
+        # If we got content before the error, send the final chunk gracefully
+        pass
 
-@app.exception_handler(404)
-async def not_found_handler(request: Request, exc):
-    """Handle 404 errors."""
-    return {"error": {"message": "Endpoint not found", "type": "not_found"}}
-
-
-@app.exception_handler(500)
-async def server_error_handler(request: Request, exc):
-    """Handle 500 errors."""
-    return {"error": {"message": "Internal server error", "type": "server_error"}}
-
-
-if __name__ == "__main__":
-    import uvicorn
-    
-    uvicorn.run(
-        "main:app",
-        host=settings.HOST,
-        port=settings.PORT,
-        reload=True,
-        log_level="info",
+    # Always send final chunk with finish_reason
+    final_chunk = ChatCompletionChunk(
+        id=chunk_id,
+        model=request.model,
+        choices=[
+            StreamChoice(
+                index=0,
+                delta={},
+                finish_reason="stop",
+            )
+        ]
     )
+    yield f"data: {final_chunk.model_dump_json()}\n\n"
+    yield "data: [DONE]\n\n"
